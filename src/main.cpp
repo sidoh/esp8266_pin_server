@@ -2,47 +2,119 @@
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
 #include <WebServer.h>
+#include <Settings.h>
+#include <MqttClient.h>
+#include <FS.h>
+#include <LinkedList.h>
+#include <ArduinoJson.h>
+#include <PinHandler.h>
 
 WebServer server(80);
 WiFiManager wifiManager;
+Settings settings;
+WiFiClient tcpClient;
+MqttClient* mqttClient;
+PinHandler pinHandler;
+volatile int8_t interruptPin;
+
+typedef void(*InterruptHandler)();
+
+void HandleInterrupt(uint8_t pin) {
+  interruptPin = pin;
+}
+
+inline void Handler1() { HandleInterrupt(1); }
+void Handler2() { HandleInterrupt(2); }
+void Handler3() { HandleInterrupt(3); }
+void Handler4() { HandleInterrupt(4); }
+void Handler5() { HandleInterrupt(5); }
+void Handler6() { HandleInterrupt(6); }
+void Handler7() { HandleInterrupt(7); }
+void Handler8() { HandleInterrupt(8); }
+void Handler9() { HandleInterrupt(9); }
+void Handler10() { HandleInterrupt(10); }
+void Handler11() { HandleInterrupt(11); }
+void Handler12() { HandleInterrupt(12); }
+void Handler13() { HandleInterrupt(13); }
+void Handler14() { HandleInterrupt(14); }
+void Handler15() { HandleInterrupt(15); }
+void Handler16() { HandleInterrupt(16); }
+
+InterruptHandler getHandler(uint8_t pin) {
+  switch (pin) {
+    case 1: return Handler1;
+    case 2: return Handler2;
+    case 3: return Handler3;
+    case 4: return Handler4;
+    case 5: return Handler5;
+    case 6: return Handler6;
+    case 7: return Handler7;
+    case 8: return Handler8;
+    case 9: return Handler9;
+    case 10: return Handler10;
+    case 11: return Handler11;
+    case 12: return Handler12;
+    case 13: return Handler13;
+    case 14: return Handler14;
+    case 15: return Handler15;
+    case 16: return Handler16;
+  }
+}
 
 void setup() {
-  Serial.begin(115200);
-  
+  Serial.begin(9600);
+  SPIFFS.begin();
+  Settings::load(settings);
+
   wifiManager.autoConnect();
-  
+
+  if (settings.mqttServer().length() > 0) {
+    mqttClient = new MqttClient(settings, pinHandler);
+    mqttClient->begin();
+  }
+
   server.onPattern("/pins/:pin", HTTP_PUT, [](UrlTokenBindings* bindings){
-    String request = server.arg("plain");
-    uint8_t pin = bindings->get("pin").toInt();
-    uint8_t state = digitalRead(pin);
-    
+    String body = server.arg("plain");
+    StaticJsonBuffer<400> buffer;
+
+    JsonObject& request = buffer.parse(body);
+    uint8_t pin = atoi(bindings->get("pin"));
     pinMode(pin, OUTPUT);
-    
-    if (request.equalsIgnoreCase("high")) {
-      state = HIGH;
-    } else if (request.equalsIgnoreCase("low")) {
-      state = LOW;
-    } else if (request.equalsIgnoreCase("toggle")) {
-      state = state == HIGH ? LOW : HIGH;
-    } else if (request.equalsIgnoreCase("flap")) {
-      digitalWrite(pin, state == HIGH ? LOW : HIGH);
-      delay(100);
-    } else {
-      server.send(400, "text/plain", "Invalid argument. Must be one of: HIGH, LOW, TOGGLE, FLAP");
-      return;
-    }
-    
-    digitalWrite(pin, state);
-    server.send(200, "text/plain", String(state));
-  });
-  
-  server.onPattern("/pins/:pin", HTTP_GET, [](UrlTokenBindings* bindings){
-    uint8_t pin = bindings->get("pin").toInt();
-    pinMode(pin, INPUT);
+
+    pinHandler.handle(pin, request);
+
     server.send(200, "text/plain", String(digitalRead(pin)));
   });
-  
-  server.on("/firmware", HTTP_POST, 
+
+  server.onPattern("/pins/:pin", HTTP_GET, [](UrlTokenBindings* bindings){
+    uint8_t pin = atoi(bindings->get("pin"));
+    server.send(200, "text/plain", String(digitalRead(pin)));
+  });
+
+  server.on("/settings", HTTP_PUT,
+    []() {
+      StaticJsonBuffer<400> buffer;
+      JsonObject& obj = buffer.parse(server.arg("plain"));
+      settings.patch(obj);
+      settings.save();
+
+      server.send(200, "application/json", "true");
+
+      ESP.reset();
+    }
+  );
+
+  server.on("/settings", HTTP_GET,
+    []() {
+      String body;
+      StringStream stream(body);
+      settings.serialize(stream, true);
+
+      server.send(200, "application/json", body);
+    }
+  );
+
+  server.on("/firmware", HTTP_POST,
     [](){
       server.sendHeader("Connection", "close");
       server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -70,10 +142,43 @@ void setup() {
       yield();
     }
   );
-  
+
+  for (size_t i = 0; i < settings.numUpdatePins; i++) {
+    uint8_t pin = settings.updatePins[i];
+    pinMode(pin, INPUT);
+
+    attachInterrupt(
+      digitalPinToInterrupt(pin),
+      getHandler(pin),
+      CHANGE
+    );
+  }
+
+  for (size_t i = 0; i < settings.numOutputPins; i++) {
+    uint8_t pin = settings.outputPins[i];
+    pinMode(pin, OUTPUT);
+    digitalWrite(pin, 0);
+  }
+
+  interruptPin = -1;
   server.begin();
 }
 
 void loop() {
   server.handleClient();
+
+  if (mqttClient) {
+    mqttClient->handleClient();
+  }
+
+  noInterrupts();
+  if (interruptPin != -1) {
+    if (mqttClient) {
+      String topicPattern = String(settings.mqttStateTopicPattern);
+      topicPattern.replace(":pin", String(interruptPin));
+      mqttClient->publish(topicPattern.c_str(), String(digitalRead(interruptPin)).c_str());
+    }
+    interruptPin = -1;
+  }
+  interrupts();
 }
