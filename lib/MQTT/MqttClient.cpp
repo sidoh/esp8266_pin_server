@@ -42,7 +42,7 @@ void MqttClient::begin() {
 }
 
 void MqttClient::publish(const char* topic, const char* message) {
-  mqttClient->publish(topic, message);
+  mqttClient->publish(topic, message, true);
 }
 
 bool MqttClient::connect() {

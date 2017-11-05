@@ -2,6 +2,10 @@
 #include <PinHandler.h>
 #include <ArduinoJson.h>
 
+PinHandler::PinHandler()
+  : callbackFn(NULL)
+{ }
+
 void PinHandler::flap(uint8_t pin) {
   uint8_t value = digitalRead(pin);
 
@@ -55,4 +59,8 @@ void PinHandler::handle(uint8_t pin, JsonObject& request) {
     String mode = request["mode"];
     pinMode(pin, mode.equalsIgnoreCase("input") ? INPUT : OUTPUT);
   }
+}
+
+void PinHandler::onPinChange(TPinHandlerCallback callbackFn) {
+  this->callbackFn = callbackFn;
 }

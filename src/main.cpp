@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <WiFiManager.h>
+#include <PinHandler.h>
 #include <WebServer.h>
 #include <Settings.h>
 #include <MqttClient.h>
 #include <FS.h>
 #include <LinkedList.h>
 #include <ArduinoJson.h>
-#include <PinHandler.h>
 
 WebServer server(80);
 WiFiManager wifiManager;
@@ -61,12 +61,21 @@ InterruptHandler getHandler(uint8_t pin) {
   }
 }
 
+void publishMqttUpdate(uint8_t pin) {
+  if (mqttClient) {
+    String topicPattern = String(settings.mqttStateTopicPattern);
+    topicPattern.replace(":pin", String(pin));
+    mqttClient->publish(topicPattern.c_str(), String(digitalRead(pin)).c_str());
+  }
+}
+
 void setup() {
   Serial.begin(9600);
   SPIFFS.begin();
   Settings::load(settings);
 
   wifiManager.autoConnect();
+  pinHandler.onPinChange(publishMqttUpdate);
 
   if (settings.mqttServer().length() > 0) {
     mqttClient = new MqttClient(settings, pinHandler);
@@ -152,6 +161,8 @@ void setup() {
       getHandler(pin),
       CHANGE
     );
+
+    publishMqttUpdate(pin);
   }
 
   for (size_t i = 0; i < settings.numOutputPins; i++) {
@@ -173,11 +184,7 @@ void loop() {
 
   noInterrupts();
   if (interruptPin != -1) {
-    if (mqttClient) {
-      String topicPattern = String(settings.mqttStateTopicPattern);
-      topicPattern.replace(":pin", String(interruptPin));
-      mqttClient->publish(topicPattern.c_str(), String(digitalRead(interruptPin)).c_str());
-    }
+    publishMqttUpdate(interruptPin);
     interruptPin = -1;
   }
   interrupts();
