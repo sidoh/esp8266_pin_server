@@ -1,4 +1,4 @@
-# esp8266_pin_server
+# esp8266_pin_server [![Build Status](https://travis-ci.org/sidoh/esp8266_pin_server.svg?branch=master)](https://travis-ci.org/sidoh/esp8266_pin_server) [![release](https://github-release-version.herokuapp.com/github/sidoh/esp8266_pin_server/release.svg?style=flat)](https://github.com/sidoh/esp8266_pin_server/releases/latest) [![License][shield-license]][info-license]
 Small REST/MQTT gateway to read/write GPIO pins on an ESP8266
 
 ## Configuring
@@ -66,10 +66,13 @@ $ curl -X PUT -d '{"action":"toggle"}' -H'Content-Type: application/json' server
 
 ## MQTT Control
 
-You can also control pins via MQTT if the setting key `mqtt_command_topic_pattern` is configured.  The message should be JSON in the same form that the REST API accepts. 
+You can also control pins via MQTT if the setting key `mqtt_command_topic_pattern` is configured.  The message should be JSON in the same form that the REST API accepts.
 
 If this is set to `pin-servers/pin-server1/states/:pin`, for example, you could set pin 11 HIGH with this:
 
 ```
 $ mosquitto_pub -h mqtt-server -p 1883 -u mqtt-user -P hunter2 -t 'pin-severs/pin-server1/commands/13' '{"action":"set","value":1}'
 ```
+
+[info-license]:   https://github.com/sidoh/esp8266_pin_server/blob/master/LICENSE
+[shield-license]: https://img.shields.io/badge/license-MIT-blue.svg
