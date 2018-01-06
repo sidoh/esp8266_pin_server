@@ -9,6 +9,17 @@
 #define SETTINGS_TERMINATOR '\0'
 #define DEFAULT_MQTT_PORT 1883
 
+#define XQUOTE(x) #x
+#define QUOTE(x) XQUOTE(x)
+
+#ifndef FIRMWARE_VARIANT
+#define FIRMWARE_VARIANT unknown
+#endif
+
+#ifndef FIRMWARE_VERSION
+#define FIRMWARE_VERSION unknown
+#endif
+
 class Settings {
 public:
   Settings() :

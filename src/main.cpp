@@ -82,6 +82,25 @@ void setup() {
     mqttClient->begin();
   }
 
+  server.on("/about", HTTP_GET, []() {
+    // Measure before allocating buffers
+    uint32_t freeHeap = ESP.getFreeHeap();
+
+    StaticJsonBuffer<150> buffer;
+    JsonObject& res = buffer.createObject();
+
+    res["version"] = QUOTE(FIRMWARE_VERSION);
+    res["variant"] = QUOTE(FIRMWARE_VARIANT);
+    res["signal_strength"] = WiFi.RSSI();
+    res["free_heap"] = freeHeap;
+    res["sdk_version"] = ESP.getSdkVersion();
+
+    String body;
+    res.printTo(body);
+
+    server.send(200, "application/json", body);
+  });
+
   server.onPattern("/pins/:pin", HTTP_PUT, [](UrlTokenBindings* bindings){
     String body = server.arg("plain");
     StaticJsonBuffer<400> buffer;
