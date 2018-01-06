@@ -1,65 +1,24 @@
-# Continuous Integration (CI) is the practice, in software
-# engineering, of merging all developer working copies with a shared mainline
-# several times a day < http://docs.platformio.org/page/ci/index.html >
-#
-# Documentation:
-#
-# * Travis CI Embedded Builds with PlatformIO
-#   < https://docs.travis-ci.com/user/integration/platformio/ >
-#
-# * PlatformIO integration with Travis CI
-#   < http://docs.platformio.org/page/ci/travis.html >
-#
-# * User Guide for `platformio ci` command
-#   < http://docs.platformio.org/page/userguide/cmd_ci.html >
-#
-#
-# Please choice one of the following templates (proposed below) and uncomment
-# it (remove "# " before each line) or use own configuration according to the
-# Travis CI documentation (see above).
-#
-
-
-#
-# Template #1: General project. Test it using existing `platformio.ini`.
-#
-
-# language: python
-# python:
-#     - "2.7"
-#
-# sudo: false
-# cache:
-#     directories:
-#         - "~/.platformio"
-#
-# install:
-#     - pip install -U platformio
-#
-# script:
-#     - platformio run
-
-
-#
-# Template #2: The project is intended to by used as a library with examples
-#
-
-# language: python
-# python:
-#     - "2.7"
-#
-# sudo: false
-# cache:
-#     directories:
-#         - "~/.platformio"
-#
-# env:
-#     - PLATFORMIO_CI_SRC=path/to/test/file.c
-#     - PLATFORMIO_CI_SRC=examples/file.ino
-#     - PLATFORMIO_CI_SRC=path/to/test/directory
-#
-# install:
-#     - pip install -U platformio
-#
-# script:
-#     - platformio ci --lib="." --board=ID_1 --board=ID_2 --board=ID_N
+language: python
+python:
+- '2.7'
+sudo: false
+cache:
+  directories:
+  - "~/.platformio"
+install:
+- pip install -U https://github.com/platformio/platformio-core/archive/develop.zip
+- platformio lib install
+script:
+- platformio run
+before_deploy:
+- "./.prepare_release"
+deploy:
+  provider: releases
+  api_key:
+    secure: Be9cwUv0r6r3f1SQsaDZCXP3WP+2sdRXFjsSQQlu5pSBGtRNJDS67sDr4MYmrHVnLJXo8d3OWhvGFEWZ9GJo+7122NBLZYU5v6aVJd7j8NYN16TnmcP30hls3wnC/e4A6HKYUauWLILowiY5cH8SUcwEG1pUJL6D1QDKmxTA/zXLvKYTcjhg4mSR6tqmCTvMfUvb7ZN+LfXrBKXzqiYG/9qRgip8MUZ8zuRIE+wxVDFkBMQMggPYYHSMCm0b/YmKEtU9JXJcjnkICNRQ8Vxn/zqHzQe/8wdBL9ktNpx2VYYPY2FLw8xAFYF3z4OtV+WMcUUOBv3dMAOF1JJPrOM2+0lEnpx4eauuQ2agf/GvbzRFecB3URYya4scqsSZ9r/+UPLPmM7ItyKddRSYiek6rLCA/c0nlwtW/uojtZmtY9NioSZFgX0uaeUwa+6eGTz+lfgf789n7HKCxubs4SSl7pF54oEMZh0+OVF+cXEfkCc8W/dgmjJ+3vUiQa+QK0IKu+Lfc2OfRRa5EHl6BjbLSmLClOr0GNh4htfg+5Y1DV8tAiy/4aDiYNaS0JMbrI+YgmCWvUMDDc8z6zRX4vbnS+w95xLJU+d6wo07Sz5nxLD4TT7SqmJLVkDGf/Oz6NieuTEkweJCEvGyapXrBg0uwTwzlcW1weLegrzQtL3OzJo=
+  file_glob: true
+  skip_cleanup: true
+  file: dist/*.bin
+  on:
+    repo: sidoh/esp8266_pin_server
+    tags: true
