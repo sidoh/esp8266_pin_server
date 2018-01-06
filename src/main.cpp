@@ -126,9 +126,15 @@ void setup() {
       settings.patch(obj);
       settings.save();
 
-      server.send(200, "application/json", "true");
+      String body;
+      StringStream stream(body);
+      settings.serialize(stream, true);
 
-      ESP.reset();
+      server.send(200, "application/json", body);
+
+      delay(100);
+
+      ESP.restart();
     }
   );
 
@@ -147,6 +153,9 @@ void setup() {
       server.sendHeader("Connection", "close");
       server.sendHeader("Access-Control-Allow-Origin", "*");
       server.send(200, "text/plain", (Update.hasError())?"FAIL":"OK");
+
+      delay(100);
+
       ESP.restart();
     },
     [](){
