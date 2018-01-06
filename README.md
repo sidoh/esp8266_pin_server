@@ -49,6 +49,7 @@ curl -X PUT -H 'Content-Type: application/json' \
   ```
 * `GET /settings`.
 * `PUT /settings`. Patches provided settings.  Accepts JSON object.
+* `GET /about`. Returns various system info (version, free heap, signal strength, etc.).
 
 #### Examples
 
