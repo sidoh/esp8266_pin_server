@@ -1,5 +1,5 @@
 # esp8266_pin_server [![Build Status](https://travis-ci.org/sidoh/esp8266_pin_server.svg?branch=master)](https://travis-ci.org/sidoh/esp8266_pin_server) [![release](https://github-release-version.herokuapp.com/github/sidoh/esp8266_pin_server/release.svg?style=flat)](https://github.com/sidoh/esp8266_pin_server/releases/latest) [![License][shield-license]][info-license]
-Small REST/MQTT gateway to read/write GPIO pins on an ESP8266
+Small REST/MQTT gateway to read/write GPIO pins on an ESP8266.
 
 ## Configuring
 
@@ -15,6 +15,22 @@ curl -X PUT -H 'Content-Type: application/json' \
   -d '{"output_pins": [4, 5]}' \
   http://your-pin-server/settings
 ```
+
+#### Dallas Temperature Pins
+
+There is support for Dallas Temperature (DS18B20, etc) digital temperature sensors.  Configure the data pin, update interval (in milliseconds), and MQTT topic pattern as follows:
+
+```
+curl -X PUT -H 'Content-Type: application/json' \
+  -d '{
+    'dallas_temp_pins': [14],
+    "mqtt_temp_topic_pattern":"pin-servers/pin-server1/temperatures/:id",
+    "thermometer_update_interval":10000
+  }' \
+  http://your-pin-server/settings
+```
+
+Updates are published for each sensor connected to the bus. `:id` is filled in with the unique ID associated with the probe.
 
 #### MQTT
 

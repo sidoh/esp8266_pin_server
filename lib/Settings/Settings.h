@@ -56,6 +56,10 @@ public:
   size_t numUpdatePins;
   uint8_t* outputPins;
   size_t numOutputPins;
+  uint8_t* dallasTempPins;
+  size_t numDallasTempPins;
+  String mqttTempTopicPattern;
+  time_t thermometerUpdateInterval;
 
 protected:
   size_t _autoRestartPeriod;
