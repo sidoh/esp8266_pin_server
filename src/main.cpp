@@ -9,6 +9,13 @@
 #include <LinkedList.h>
 #include <ArduinoJson.h>
 
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include <TempIface.h>
+
+#include <vector>
+#include <map>
+
 WebServer server(80);
 WiFiManager wifiManager;
 Settings settings;
@@ -16,6 +23,8 @@ WiFiClient tcpClient;
 MqttClient* mqttClient;
 PinHandler pinHandler;
 volatile int8_t interruptPin;
+std::vector<TempIface*> thermometers;
+time_t lastTempUpdate = 0;
 
 typedef void(*InterruptHandler)();
 
@@ -58,6 +67,16 @@ InterruptHandler getHandler(uint8_t pin) {
     case 14: return Handler14;
     case 15: return Handler15;
     case 16: return Handler16;
+  }
+}
+
+void publishTemperature(String id, float temp) {
+  const String& topicPattern = settings.mqttTempTopicPattern;
+
+  if (mqttClient && topicPattern.length() > 0) {
+    String topic = topicPattern;
+    topic.replace(":id", id);
+    mqttClient->publish(topic.c_str(), String(temp).c_str());
   }
 }
 
@@ -199,6 +218,17 @@ void setup() {
     digitalWrite(pin, 0);
   }
 
+  for (size_t i = 0; i < settings.numDallasTempPins; i++) {
+    OneWire* oneWireBus = new OneWire(settings.dallasTempPins[i]);
+    DallasTemperature* thermometer = new DallasTemperature(oneWireBus);
+    TempIface* tempIface = new TempIface(thermometer);
+
+    thermometer->begin();
+    tempIface->begin();
+
+    thermometers.push_back(tempIface);
+  }
+
   interruptPin = -1;
   server.begin();
 }
@@ -216,4 +246,17 @@ void loop() {
     interruptPin = -1;
   }
   interrupts();
+
+  if (lastTempUpdate == 0 || (lastTempUpdate + settings.thermometerUpdateInterval) > millis()) {
+    for (std::vector<TempIface*>::iterator it = thermometers.begin(); it != thermometers.end(); ++it) {
+      (*it)->refreshTemps();
+      const std::map<String, float>& temps = (*it)->getCurrentTemps();
+
+      for (std::map<String, float>::const_iterator tempIt = temps.begin(); tempIt != temps.end(); ++tempIt) {
+        publishTemperature(tempIt->first, tempIt->second);
+      }
+    }
+
+    lastTempUpdate = millis();
+  }
 }

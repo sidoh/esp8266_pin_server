@@ -24,6 +24,8 @@ void Settings::patch(JsonObject& parsedSettings) {
     this->setIfPresent(parsedSettings, "mqtt_password", mqttPassword);
     this->setIfPresent(parsedSettings, "mqtt_command_topic_pattern", mqttCommandTopicPattern);
     this->setIfPresent(parsedSettings, "mqtt_state_topic_pattern", mqttStateTopicPattern);
+    this->setIfPresent(parsedSettings, "mqtt_temp_topic_pattern", mqttTempTopicPattern);
+    this->setIfPresent(parsedSettings, "thermometer_update_interval", thermometerUpdateInterval);
 
     if (parsedSettings.containsKey("update_pins")) {
       if (this->updatePins) {
@@ -40,11 +42,22 @@ void Settings::patch(JsonObject& parsedSettings) {
       if (this->outputPins) {
         delete this->outputPins;
       }
-      
+
       JsonArray& outputPins = parsedSettings["output_pins"];
       this->numOutputPins = outputPins.size();
       this->outputPins = new uint8_t[this->numOutputPins];
       outputPins.copyTo(this->outputPins, this->numOutputPins);
+    }
+
+    if (parsedSettings.containsKey("dallas_temp_pins")) {
+      if (this->dallasTempPins) {
+        delete this->dallasTempPins;
+      }
+
+      JsonArray& dallasTempPins = parsedSettings["dallas_temp_pins"];
+      this->numDallasTempPins = dallasTempPins.size();
+      this->dallasTempPins = new uint8_t[this->numDallasTempPins];
+      dallasTempPins.copyTo(this->dallasTempPins, this->numDallasTempPins);
     }
   }
 }
@@ -83,6 +96,8 @@ void Settings::serialize(Stream& stream, const bool prettyPrint) {
   root["mqtt_password"] = this->mqttPassword;
   root["mqtt_command_topic_pattern"] = this->mqttCommandTopicPattern;
   root["mqtt_state_topic_pattern"] = this->mqttStateTopicPattern;
+  root["mqtt_temp_topic_pattern"] = this->mqttTempTopicPattern;
+  root["thermometer_update_interval"] = this->thermometerUpdateInterval;
 
   JsonArray& updatePins = jsonBuffer.createArray();
   updatePins.copyFrom(this->updatePins, this->numUpdatePins);
@@ -91,6 +106,10 @@ void Settings::serialize(Stream& stream, const bool prettyPrint) {
   JsonArray& outputPins = jsonBuffer.createArray();
   outputPins.copyFrom(this->outputPins, this->numOutputPins);
   root["output_pins"] = outputPins;
+
+  JsonArray& dallasTempPins = jsonBuffer.createArray();
+  dallasTempPins.copyFrom(this->dallasTempPins, this->numDallasTempPins);
+  root["dallas_temp_pins"] = dallasTempPins;
 
   if (prettyPrint) {
     root.prettyPrintTo(stream);
