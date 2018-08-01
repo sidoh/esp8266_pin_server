@@ -24,7 +24,7 @@ MqttClient* mqttClient;
 PinHandler pinHandler;
 volatile int8_t interruptPin;
 std::vector<TempIface*> thermometers;
-time_t lastTempUpdate = 0;
+unsigned long lastTempUpdate = 0;
 
 typedef void(*InterruptHandler)();
 
@@ -247,7 +247,7 @@ void loop() {
   }
   interrupts();
 
-  if (lastTempUpdate == 0 || (lastTempUpdate + settings.thermometerUpdateInterval) > millis()) {
+  if (lastTempUpdate == 0 || (lastTempUpdate + settings.thermometerUpdateInterval) < millis()) {
     for (std::vector<TempIface*>::iterator it = thermometers.begin(); it != thermometers.end(); ++it) {
       (*it)->refreshTemps();
       const std::map<String, float>& temps = (*it)->getCurrentTemps();
