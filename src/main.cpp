@@ -24,6 +24,7 @@ MqttClient* mqttClient;
 PinHandler pinHandler;
 volatile int8_t interruptPin;
 std::vector<TempIface*> thermometers;
+std::map<uint8_t, uint8_t> lastPinValues;
 unsigned long lastTempUpdate = 0;
 
 typedef void(*InterruptHandler)();
@@ -242,7 +243,13 @@ void loop() {
 
   noInterrupts();
   if (interruptPin != -1) {
-    publishMqttUpdate(interruptPin);
+    uint8_t value = digitalRead(interruptPin);
+
+    if (lastPinValues.find(interruptPin) == lastPinValues.end() || lastPinValues[interruptPin] != value) {
+      publishMqttUpdate(interruptPin);
+      lastPinValues[interruptPin] = value;
+    }
+
     interruptPin = -1;
   }
   interrupts();
