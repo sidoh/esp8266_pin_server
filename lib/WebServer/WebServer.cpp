@@ -1,85 +1,91 @@
+#include <PinHandler.h>
+#include <Settings.h>
 #include <WebServer.h>
-#include <PatternHandler.h>
+#include <FS.h>
 
-void WebServer::onPattern(const String& pattern, const HTTPMethod method, PatternHandler::TPatternHandlerFn fn) {
-  addHandler(new PatternHandler(pattern, method, fn));
-}
+using namespace std::placeholders;
 
-void WebServer::requireAuthentication(const String& username, const String& password) {
-  this->username = String(username);
-  this->password = String(password);
-  this->authEnabled = true;
-}
+WebServer::WebServer(Settings& settings, PinHandler& pinHandler)
+  : settings(settings)
+  , authProvider(settings)
+  , server(80, authProvider)
+  , pinHandler(pinHandler)
+{ }
 
-void WebServer::disableAuthentication() {
-  this->authEnabled = false;
-}
+void WebServer::begin() {
+  server
+    .buildHandler("/pin/:pin")
+    .on(HTTP_GET, std::bind(&WebServer::handleGetPin, this, _1))
+    .on(HTTP_PUT, std::bind(&WebServer::handlePutPin, this, _1));
 
-void WebServer::_handleRequest() {
-  if (this->authEnabled
-    && !this->authenticate(this->username.c_str(), this->password.c_str())) {
-    this->requestAuthentication();
-  } else {
-    ESP8266WebServer::_handleRequest();
-  }
+  server
+    .buildHandler("/settings")
+    .on(HTTP_GET, std::bind(&WebServer::handleGetSettings, this, _1))
+    .on(HTTP_PUT, std::bind(&WebServer::handlePutSettings, this, _1));
+
+  server
+    .buildHandler("/about")
+    .on(HTTP_GET, std::bind(&WebServer::handleAbout, this, _1));
+
+  server
+    .buildHandler("/firmware")
+    .handleOTA();
 }
 
 void WebServer::handleClient() {
-  if (_currentStatus == HC_NONE) {
-    WiFiClient client = _server.available();
-    if (!client) {
-      return;
-    }
+  server.handleClient();
+}
 
-    _currentClient = client;
-    _currentStatus = HC_WAIT_READ;
-    _statusChange = millis();
+void WebServer::handleAbout(RequestContext& request) {
+  // Measure before allocating buffers
+  uint32_t freeHeap = ESP.getFreeHeap();
+  JsonObject res = request.response.json.to<JsonObject>();
+
+  res["version"] = QUOTE(FIRMWARE_VERSION);
+  res["variant"] = QUOTE(FIRMWARE_VARIANT);
+  res["signal_strength"] = WiFi.RSSI();
+  res["free_heap"] = freeHeap;
+  res["sdk_version"] = ESP.getSdkVersion();
+}
+
+void WebServer::handleGetPin(RequestContext& request) {
+  uint8_t pinId = atoi(request.pathVariables.get("pin"));
+
+  JsonObject pin = request.response.json.createNestedObject("pin");
+  pin["value"] = digitalRead(pinId);
+}
+
+void WebServer::handlePutPin(RequestContext& request) {
+  JsonObject body = request.getJsonBody().as<JsonObject>();
+
+  uint8_t pin = atoi(request.pathVariables.get("pin"));
+  pinMode(pin, OUTPUT);
+
+  pinHandler.handle(pin, body);
+
+  handleGetPin(request);
+}
+
+void WebServer::handleGetSettings(RequestContext& request) {
+  const char* file = SETTINGS_FILE;
+
+  if (SPIFFS.exists(file)) {
+    File f = SPIFFS.open(file, "r");
+    server.streamFile(f, "application/json");
+    f.close();
+  } else {
+    request.response.json["error"] = F("Settings file not stored on SPIFFS.  This is an unexpected error!");
+    request.response.setCode(500);
   }
+}
 
-  if (!_currentClient.connected()) {
-    _currentClient = WiFiClient();
-    _currentStatus = HC_NONE;
-    return;
-  }
+void WebServer::handlePutSettings(RequestContext& request) {
+  JsonObject newSettings = request.getJsonBody().as<JsonObject>();
+  settings.patch(newSettings);
+  settings.save();
 
-  // Wait for data from client to become available
-  if (_currentStatus == HC_WAIT_READ) {
-    if (!_currentClient.available()) {
-      if (millis() - _statusChange > HTTP_MAX_DATA_WAIT) {
-        _currentClient = WiFiClient();
-        _currentStatus = HC_NONE;
-      }
-      yield();
-      return;
-    }
+  // just re-serve settings file
+  handleGetSettings(request);
 
-    if (!_parseRequest(_currentClient)) {
-      _currentClient = WiFiClient();
-      _currentStatus = HC_NONE;
-      return;
-    }
-    _currentClient.setTimeout(HTTP_MAX_SEND_WAIT);
-    _contentLength = CONTENT_LENGTH_NOT_SET;
-    _handleRequest();
-
-    if (!_currentClient.connected()) {
-      _currentClient = WiFiClient();
-      _currentStatus = HC_NONE;
-      return;
-    } else {
-      _currentStatus = HC_WAIT_CLOSE;
-      _statusChange = millis();
-      return;
-    }
-  }
-
-  if (_currentStatus == HC_WAIT_CLOSE) {
-    if (millis() - _statusChange > HTTP_MAX_CLOSE_WAIT) {
-      _currentClient = WiFiClient();
-      _currentStatus = HC_NONE;
-    } else {
-      yield();
-      return;
-    }
-  }
+  ESP.restart();
 }

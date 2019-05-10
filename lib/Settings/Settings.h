@@ -1,6 +1,6 @@
 #include <Arduino.h>
-#include <StringStream.h>
 #include <ArduinoJson.h>
+#include <vector>
 
 #ifndef _SETTINGS_H_INCLUDED
 #define _SETTINGS_H_INCLUDED
@@ -27,20 +27,17 @@ public:
     adminPassword("")
   { }
 
-  ~Settings() {
-    if (updatePins) {
-      delete updatePins;
-    }
-  }
+  ~Settings() { }
 
-  bool hasAuthSettings();
+  bool isAuthenticationEnabled() const;
+  const String& getUsername() const;
+  const String& getPassword() const;
 
-  static void deserialize(Settings& settings, String json);
   static void load(Settings& settings);
 
   void save();
   void serialize(Stream& stream, const bool prettyPrint = false);
-  void patch(JsonObject& obj);
+  void patch(JsonObject obj);
 
   String mqttServer();
   uint16_t mqttPort();
@@ -52,12 +49,9 @@ public:
   String mqttPassword;
   String mqttCommandTopicPattern;
   String mqttStateTopicPattern;
-  uint8_t* updatePins;
-  size_t numUpdatePins;
-  uint8_t* outputPins;
-  size_t numOutputPins;
-  uint8_t* dallasTempPins;
-  size_t numDallasTempPins;
+  std::vector<uint8_t> updatePins;
+  std::vector<uint8_t> outputPins;
+  std::vector<uint8_t> dallasTempPins;
   String mqttTempTopicPattern;
   time_t thermometerUpdateInterval;
 
@@ -65,9 +59,25 @@ protected:
   size_t _autoRestartPeriod;
 
   template <typename T>
-  void setIfPresent(JsonObject& obj, const char* key, T& var) {
+  void setIfPresent(JsonObject obj, const char* key, T& var) {
     if (obj.containsKey(key)) {
-      var = obj.get<T>(key);
+      JsonVariant val = obj[key];
+      var = val.as<T>();
+    }
+  }
+
+  template<typename T>
+  static void copyFrom(JsonArray arr, std::vector<T> vec) {
+    for (typename std::vector<T>::const_iterator it = vec.begin(); it != vec.end(); ++it) {
+      arr.add(*it);
+    }
+  }
+
+  template<typename T>
+  static void copyTo(JsonArray arr, std::vector<T> vec) {
+    for (size_t i = 0; i < arr.size(); ++i) {
+      JsonVariant val = arr[i];
+      vec.push_back(val.as<T>());
     }
   }
 };

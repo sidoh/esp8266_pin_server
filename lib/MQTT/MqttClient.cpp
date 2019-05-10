@@ -117,9 +117,9 @@ void MqttClient::publishCallback(char* topic, byte* payload, int length) {
   TokenIterator topicIterator(topic, strlen(topic), '/');
   UrlTokenBindings tokenBindings(patternIterator, topicIterator);
 
-  StaticJsonBuffer<400> buffer;
-  JsonObject& request = buffer.parse(cstrPayload);
+  StaticJsonDocument<400> buffer;
+  deserializeJson(buffer, cstrPayload);
 
   uint8_t pin = atoi(tokenBindings.get("pin"));
-  pinHandler.handle(pin, request);
+  pinHandler.handle(pin, buffer.as<JsonObject>());
 }
