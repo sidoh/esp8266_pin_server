@@ -16,12 +16,13 @@
 #include <vector>
 #include <map>
 
-WebServer server(80);
-WiFiManager wifiManager;
 Settings settings;
+PinHandler pinHandler;
+WebServer server(settings, pinHandler);
+
+WiFiManager wifiManager;
 WiFiClient tcpClient;
 MqttClient* mqttClient;
-PinHandler pinHandler;
 volatile int8_t interruptPin;
 std::vector<TempIface*> thermometers;
 std::map<uint8_t, uint8_t> lastPinValues;
@@ -102,105 +103,7 @@ void setup() {
     mqttClient->begin();
   }
 
-  server.on("/about", HTTP_GET, []() {
-    // Measure before allocating buffers
-    uint32_t freeHeap = ESP.getFreeHeap();
-
-    StaticJsonBuffer<150> buffer;
-    JsonObject& res = buffer.createObject();
-
-    res["version"] = QUOTE(FIRMWARE_VERSION);
-    res["variant"] = QUOTE(FIRMWARE_VARIANT);
-    res["signal_strength"] = WiFi.RSSI();
-    res["free_heap"] = freeHeap;
-    res["sdk_version"] = ESP.getSdkVersion();
-
-    String body;
-    res.printTo(body);
-
-    server.send(200, "application/json", body);
-  });
-
-  server.onPattern("/pins/:pin", HTTP_PUT, [](UrlTokenBindings* bindings){
-    String body = server.arg("plain");
-    StaticJsonBuffer<400> buffer;
-
-    JsonObject& request = buffer.parse(body);
-    uint8_t pin = atoi(bindings->get("pin"));
-    pinMode(pin, OUTPUT);
-
-    pinHandler.handle(pin, request);
-
-    server.send(200, "text/plain", String(digitalRead(pin)));
-  });
-
-  server.onPattern("/pins/:pin", HTTP_GET, [](UrlTokenBindings* bindings){
-    uint8_t pin = atoi(bindings->get("pin"));
-    server.send(200, "text/plain", String(digitalRead(pin)));
-  });
-
-  server.on("/settings", HTTP_PUT,
-    []() {
-      StaticJsonBuffer<400> buffer;
-      JsonObject& obj = buffer.parse(server.arg("plain"));
-      settings.patch(obj);
-      settings.save();
-
-      String body;
-      StringStream stream(body);
-      settings.serialize(stream, true);
-
-      server.send(200, "application/json", body);
-
-      delay(100);
-
-      ESP.restart();
-    }
-  );
-
-  server.on("/settings", HTTP_GET,
-    []() {
-      String body;
-      StringStream stream(body);
-      settings.serialize(stream, true);
-
-      server.send(200, "application/json", body);
-    }
-  );
-
-  server.on("/firmware", HTTP_POST,
-    [](){
-      server.sendHeader("Connection", "close");
-      server.sendHeader("Access-Control-Allow-Origin", "*");
-      server.send(200, "text/plain", (Update.hasError())?"FAIL":"OK");
-
-      delay(100);
-
-      ESP.restart();
-    },
-    [](){
-      HTTPUpload& upload = server.upload();
-      if(upload.status == UPLOAD_FILE_START){
-        WiFiUDP::stopAll();
-        uint32_t maxSketchSpace = (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
-        if(!Update.begin(maxSketchSpace)){//start with max available size
-          Update.printError(Serial);
-        }
-      } else if(upload.status == UPLOAD_FILE_WRITE){
-        if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
-          Update.printError(Serial);
-        }
-      } else if(upload.status == UPLOAD_FILE_END){
-        if(Update.end(true)){ //true to set the size to the current progress
-        } else {
-          Update.printError(Serial);
-        }
-      }
-      yield();
-    }
-  );
-
-  for (size_t i = 0; i < settings.numUpdatePins; i++) {
+  for (size_t i = 0; i < settings.updatePins.size(); i++) {
     uint8_t pin = settings.updatePins[i];
     pinMode(pin, INPUT);
 
@@ -213,13 +116,13 @@ void setup() {
     publishMqttUpdate(pin);
   }
 
-  for (size_t i = 0; i < settings.numOutputPins; i++) {
+  for (size_t i = 0; i < settings.outputPins.size(); i++) {
     uint8_t pin = settings.outputPins[i];
     pinMode(pin, OUTPUT);
     digitalWrite(pin, 0);
   }
 
-  for (size_t i = 0; i < settings.numDallasTempPins; i++) {
+  for (size_t i = 0; i < settings.dallasTempPins.size(); i++) {
     OneWire* oneWireBus = new OneWire(settings.dallasTempPins[i]);
     DallasTemperature* thermometer = new DallasTemperature(oneWireBus);
     TempIface* tempIface = new TempIface(thermometer);

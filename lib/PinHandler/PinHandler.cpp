@@ -31,10 +31,10 @@ void PinHandler::toggle(uint8_t pin) {
   digitalWrite(pin, value == 0 ? 1 : 0);
 }
 
-void PinHandler::handle(uint8_t pin, JsonObject& request) {
-  if (! request.success() || ! request.containsKey("action")) {
+void PinHandler::handle(uint8_t pin, JsonObject request) {
+  if (request.isNull() || ! request.containsKey("action")) {
     Serial.print("Invalid input: ");
-    request.printTo(Serial);
+    serializeJson(request, Serial);
     return;
   }
 

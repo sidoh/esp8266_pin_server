@@ -4,35 +4,34 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ESP8266WebServer.h>
-#include <PatternHandler.h>
+#include <RichHttpServer.h>
+#include <Settings.h>
 
-class WebServer : public ESP8266WebServer {
+#include <PinHandler.h>
+
+using RichHttpConfig = RichHttp::Generics::Configs::EspressifBuiltin;
+using RequestContext = RichHttpConfig::RequestContextType;
+
+class WebServer {
 public:
-  WebServer(int port) : ESP8266WebServer(port) { }
+  WebServer(Settings& settings, PinHandler& pinHandler);
 
-  bool matchesPattern(const String& pattern, const String& url);
-  void onPattern(const String& pattern, const HTTPMethod method, PatternHandler::TPatternHandlerFn fn);
-  void requireAuthentication(const String& username, const String& password);
-  void disableAuthentication();
-
-  inline bool clientConnected() {
-    return _currentClient && _currentClient.connected();
-  }
-
-  // These are copied / patched from ESP8266WebServer because they aren't
-  // virtual. (*barf*)
+  void begin();
   void handleClient();
-  void _handleRequest();
 
-  bool authenticationRequired() {
-    return authEnabled;
-  }
+private:
+  Settings& settings;
+  PassthroughAuthProvider<Settings> authProvider;
+  RichHttpServer<RichHttpConfig> server;
+  PinHandler& pinHandler;
 
-protected:
+  void handleAbout(RequestContext& request);
 
-  bool authEnabled;
-  String username;
-  String password;
+  void handleGetSettings(RequestContext& request);
+  void handlePutSettings(RequestContext& request);
+
+  void handleGetPin(RequestContext& request);
+  void handlePutPin(RequestContext& request);
 };
 
 #endif
